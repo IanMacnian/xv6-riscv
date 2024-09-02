@@ -17,7 +17,7 @@ struct context {
   uint64 s10;
   uint64 s11;
 };
-
+uint64 getppid(void);
 // Per-CPU state.
 struct cpu {
   struct proc *proc;          // The process running on this cpu, or null.
@@ -27,6 +27,7 @@ struct cpu {
 };
 
 extern struct cpu cpus[NCPU];
+
 
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
