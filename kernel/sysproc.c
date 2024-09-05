@@ -35,6 +35,13 @@ sys_wait(void)
   return wait(p);
 }
 
+int
+sys_getppid(void)
+{
+    return myproc()->parent->pid;
+}
+
+
 uint64
 sys_sbrk(void)
 {

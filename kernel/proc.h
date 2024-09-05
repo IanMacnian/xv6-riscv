@@ -26,6 +26,8 @@ struct cpu {
   int intena;                 // Were interrupts enabled before push_off()?
 };
 
+int getppid(void);
+
 extern struct cpu cpus[NCPU];
 
 // per-process data for the trap handling code in trampoline.S.
