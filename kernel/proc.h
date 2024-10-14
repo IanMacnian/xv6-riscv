@@ -84,7 +84,8 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // Per-process state
 struct proc {
   struct spinlock lock;
-
+  int priority;  // Prioridad del proceso (0 = más alta)
+  int boost;     // Valor de boost (+1 o -1)
   // p->lock must be held when using these:
   enum procstate state;        // Process state
   void *chan;                  // If non-zero, sleeping on chan

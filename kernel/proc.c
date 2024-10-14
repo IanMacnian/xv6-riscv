@@ -110,7 +110,8 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
-
+  p->priority = 0;  // Inicializa la prioridad en 0
+  p->boost = 1;     // Inicializa el boost en 1
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -444,40 +445,43 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
+    struct proc *p;
+    for(;;){
+        // Evita que otros núcleos modifiquen la tabla de procesos
+        intr_on();
 
-  c->proc = 0;
-  for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting.
-    intr_on();
+        for(p = proc; p < &proc[NPROC]; p++){
+            if(p->state == RUNNABLE){
+                // Aumenta la prioridad de los procesos RUNNABLE
+                p->priority += p->boost;
+                
+                // Cambiar el boost si la prioridad alcanza ciertos valores
+                if(p->priority >= 9)
+                    p->boost = -1;
+                else if(p->priority <= 0)
+                    p->boost = 1;
 
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
-      }
-      release(&p->lock);
+                // Aquí se selecciona el proceso para correr, si es de mayor prioridad
+                // Puedes comparar prioridades para decidir
+                // Este ejemplo selecciona el proceso con menor prioridad numérica
+                struct proc *highest = 0;
+                for (struct proc *q = proc; q < &proc[NPROC]; q++) {
+                    if (q->state == RUNNABLE) {
+                        if (!highest || q->priority < highest->priority) {
+                            highest = q;
+                        }
+                    }
+                }
+                
+                // Ejecutar el proceso con la prioridad más alta
+                if (highest) {
+                    p = highest;
+                    p->state = RUNNING;
+                    swtch(&c->scheduler, p->context);
+                }
+            }
+        }
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      intr_on();
-      asm volatile("wfi");
-    }
-  }
 }
 
 // Switch to scheduler.  Must hold only p->lock
