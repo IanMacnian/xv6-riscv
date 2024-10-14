@@ -179,7 +179,7 @@ static inline uint64
 r_stimecmp()
 {
   uint64 x;
-  asm volatile("csrr %0, stimecmp" : "=r" (x) );
+  //asm volatile("csrr %0, stimecmp" : "=r" (x) );
   return x;
 }
 
@@ -194,7 +194,7 @@ static inline uint64
 r_menvcfg()
 {
   uint64 x;
-  asm volatile("csrr %0, menvcfg" : "=r" (x) );
+  //asm volatile("csrr %0, menvcfg" : "=r" (x) );
   return x;
 }
 
