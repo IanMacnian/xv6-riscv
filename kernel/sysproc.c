@@ -91,3 +91,26 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_chmod(void) {
+  char *path;
+  int mode;
+  struct inode *ip;
+
+  if (argstr(0, &path) < 0 || argint(1, &mode) < 0)
+    return -1;
+
+  begin_op();
+  if ((ip = namei(path)) == 0) {
+    end_op();
+    return -1; // File not found
+  }
+
+  ilock(ip);
+  ip->perm = mode;
+  iupdate(ip); // Update on disk
+  iunlockput(ip);
+  end_op();
+
+  return 0;
+}

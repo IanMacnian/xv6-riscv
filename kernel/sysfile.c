@@ -301,7 +301,7 @@ create(char *path, short type, short major, short minor)
   return 0;
 }
 
-uint64
+int
 sys_open(void)
 {
   char path[MAXPATH];
@@ -310,12 +310,14 @@ sys_open(void)
   struct inode *ip;
   int n;
 
+  // Obtener los argumentos
   argint(1, &omode);
   if((n = argstr(0, path, MAXPATH)) < 0)
     return -1;
 
   begin_op();
 
+  // Si el archivo no existe y O_CREATE está especificado, crear el archivo
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
@@ -323,11 +325,14 @@ sys_open(void)
       return -1;
     }
   } else {
+    // Intentar obtener el inode correspondiente al archivo
     if((ip = namei(path)) == 0){
       end_op();
       return -1;
     }
     ilock(ip);
+
+    // No se permite abrir directorios con modos diferentes de O_RDONLY
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
       end_op();
@@ -335,12 +340,27 @@ sys_open(void)
     }
   }
 
+  // Validar que el archivo no sea un dispositivo inválido
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op();
     return -1;
   }
 
+  // Validar permisos basados en `perm` del inode
+  if ((omode & O_WRONLY) && !(ip->perm & 2)) { // Solicita escritura, pero no tiene permiso
+    iunlockput(ip);
+    end_op();
+    return -1; // Permiso de escritura denegado
+  }
+
+  if ((omode & O_RDONLY) && !(ip->perm & 1)) { // Solicita lectura, pero no tiene permiso
+    iunlockput(ip);
+    end_op();
+    return -1; // Permiso de lectura denegado
+  }
+
+  // Asignar un archivo y descriptor de archivo
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
     if(f)
       fileclose(f);
@@ -349,6 +369,7 @@ sys_open(void)
     return -1;
   }
 
+  // Configurar el tipo de archivo (dispositivo o inode)
   if(ip->type == T_DEVICE){
     f->type = FD_DEVICE;
     f->major = ip->major;
@@ -356,18 +377,22 @@ sys_open(void)
     f->type = FD_INODE;
     f->off = 0;
   }
+
+  // Configurar el archivo con los modos solicitados
   f->ip = ip;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
 
+  // Truncar el archivo si el modo O_TRUNC está especificado
   if((omode & O_TRUNC) && ip->type == T_FILE){
     itrunc(ip);
   }
 
+  // Desbloquear el inode y finalizar la operación
   iunlock(ip);
   end_op();
 
-  return fd;
+  return fd; // Retornar el descriptor de archivo
 }
 
 uint64

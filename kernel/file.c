@@ -107,7 +107,9 @@ int
 fileread(struct file *f, uint64 addr, int n)
 {
   int r = 0;
-
+  if (!(f->ip->perm & 1)) {
+    return -1; // No read permission
+  }
   if(f->readable == 0)
     return -1;
 
@@ -135,7 +137,9 @@ int
 filewrite(struct file *f, uint64 addr, int n)
 {
   int r, ret = 0;
-
+  if (!(f->ip->perm & 2)) {
+  return -1; // No write permission
+}
   if(f->writable == 0)
     return -1;
 

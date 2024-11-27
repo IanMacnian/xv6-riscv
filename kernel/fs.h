@@ -1,7 +1,6 @@
 // On-disk file system format.
 // Both the kernel and user programs use this header file.
 
-
 #define ROOTINO  1   // root i-number
 #define BSIZE 1024  // block size
 
@@ -30,12 +29,13 @@ struct superblock {
 
 // On-disk inode structure
 struct dinode {
-  short type;           // File type
-  short major;          // Major device number (T_DEVICE only)
-  short minor;          // Minor device number (T_DEVICE only)
-  short nlink;          // Number of links to inode in file system
-  uint size;            // Size of file (bytes)
-  uint addrs[NDIRECT+1];   // Data block addresses
+  short type;            // File type
+  short major;           // Major device number (T_DEV only)
+  short minor;           // Minor device number (T_DEV only)
+  short nlink;           // Number of links to inode in file system
+  uint size;             // Size of file (bytes)
+  uint addrs[NDIRECT+1]; // Data block addresses
+  int perm;              // Permissions (0 = no access, 1 = read, 2 = write, 3 = read/write)
 };
 
 // Inodes per block.
@@ -58,3 +58,19 @@ struct dirent {
   char name[DIRSIZ];
 };
 
+// In-memory copy of an inode
+struct inode {
+  uint dev;           // Device number
+  uint inum;          // Inode number
+  int ref;            // Reference count
+  int valid;          // inode has been read from disk?
+
+  short type;         // Copy of disk inode
+  short major;
+  short minor;
+  short nlink;
+  uint size;
+  uint addrs[NDIRECT+1];
+
+  int perm;           // Permissions (0 = no access, 1 = read, 2 = write, 3 = read/write)
+};
