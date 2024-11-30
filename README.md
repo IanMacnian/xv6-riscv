@@ -1,166 +1,57 @@
 Implementación de Permisos Básicos en xv6 (RISC-V)
-Este documento describe cómo se implementó un sistema básico de permisos en el sistema operativo educativo xv6. Los permisos permiten controlar si un archivo puede ser leído, escrito, o ambos, e incluyen la posibilidad de definir archivos como inmutables.
+Este documento describe los pasos realizados para implementar un sistema de permisos básicos en el sistema operativo xv6 (RISC-V). La funcionalidad permite gestionar permisos de solo lectura, escritura o ambos para archivos, además de agregar una nueva syscall para modificar estos permisos.
 
-Requisitos Previos
-Antes de comenzar, asegúrate de contar con lo siguiente:
-
-Un entorno funcional de xv6 (RISC-V) configurado.
-Familiaridad con la estructura del código de xv6, incluyendo los módulos de syscall, fs, y proc.
-Herramientas como qemu y make para compilar y ejecutar xv6.
-Modificaciones Realizadas
-1. Estructura del Inode
-Se añadió un campo llamado perm a la estructura dinode en fs.h. Este campo almacena los permisos del archivo:
+1. Modificación de la estructura del inode
+Se añadió un campo en la estructura dinode llamado perm. Este campo permite definir los permisos de los archivos usando un número entero:
 
 0: Sin acceso.
 1: Solo lectura.
 2: Solo escritura.
-3: Lectura y escritura.
-Archivo modificado: fs.h
+3: Lectura y escritura (por defecto al crear un archivo).
+Esto permite al sistema distinguir entre los diferentes niveles de acceso que los archivos pueden tener.
 
-c
-Copiar código
-struct dinode {
-  short type;            // Tipo de archivo
-  short major;           // Número mayor (T_DEV solo)
-  short minor;           // Número menor (T_DEV solo)
-  short nlink;           // Número de enlaces
-  uint size;             // Tamaño del archivo
-  uint addrs[NDIRECT+1]; // Direcciones de bloques de datos
-  int perm;              // Permisos (0 = sin acceso, 1 = lectura, 2 = escritura, 3 = lectura/escritura)
-};
-2. Validaciones en sys_open
-Se modificó la función sys_open en sysfile.c para validar los permisos al abrir archivos. Dependiendo de los permisos del archivo (perm en el inode), se permite o deniega la operación.
+2. Validación de permisos en sys_open
+La función sys_open fue modificada para respetar los permisos definidos en el inode al momento de abrir un archivo. Se realizaron verificaciones para que:
 
-Archivo modificado: sysfile.c
+Si el archivo está marcado como solo lectura, no se pueda abrir en modo escritura.
+Si está marcado como sin acceso, se deniegue cualquier intento de apertura.
+Cualquier operación que viole estos permisos devuelve un error al usuario.
 
-c
-Copiar código
-if ((omode & O_WRONLY) && !(ip->perm & 2)) {
-  iunlockput(ip);
-  end_op();
-  return -1; // Error: No hay permisos de escritura
-}
+3. Creación de la syscall chmod
+Se implementó una nueva llamada al sistema, chmod, que permite a los usuarios cambiar los permisos de un archivo. Esta syscall toma como parámetros:
 
-if ((omode & O_RDONLY) && !(ip->perm & 1)) {
-  iunlockput(ip);
-  end_op();
-  return -1; // Error: No hay permisos de lectura
-}
-3. Nueva Llamada al Sistema: chmod
-Se implementó una nueva syscall, chmod, para permitir a los usuarios modificar los permisos de un archivo.
+El nombre del archivo.
+El nuevo modo de permisos (0, 1, 2 o 3).
+La syscall actualiza los permisos directamente en el inode del archivo y persiste los cambios en el disco.
 
-Definición de chmod
-Archivo modificado: sysproc.c
+4. Programa de prueba
+Se creó un programa de prueba que realiza las siguientes acciones:
 
-c
-Copiar código
-uint64 sys_chmod(void) {
-  char path[MAXPATH];
-  int mode;
+Crea un archivo con permisos de lectura/escritura.
+Escribe en el archivo para verificar que los permisos iniciales funcionan correctamente.
+Cambia los permisos a solo lectura usando la syscall chmod.
+Intenta abrir el archivo en modo escritura (lo cual debe fallar).
+Restaura los permisos a lectura/escritura y verifica que la escritura es posible nuevamente.
+Este programa asegura que los permisos se gestionan de forma correcta en diferentes escenarios.
 
-  if (argstr(0, path, MAXPATH) < 0 || argint(1, &mode) < 0)
-    return -1;
+Problemas Encontrados
+1. Errores con SYS_chmod:
+Inicialmente, el sistema arrojaba errores porque no se había registrado correctamente la nueva syscall. Fue necesario:
 
-  return chmod(path, mode); // Lógica en fs.c
-}
-Archivo modificado: fs.c
+Añadir la constante SYS_chmod en los archivos de configuración de syscalls.
+Registrar la función en la tabla de syscalls.
+2. Campo perm no inicializado:
+Al crear nuevos inodes, no se inicializaba el campo perm. Esto causaba comportamientos impredecibles. Se corrigió asegurando que el valor inicial sea 3 (lectura y escritura).
 
-c
-Copiar código
-int chmod(char *path, int mode) {
-  struct inode *ip;
+3. Validación incorrecta en sys_open:
+En algunos casos, los permisos no se respetaban porque las verificaciones no cubrían todos los modos de apertura posibles. Se revisaron y ajustaron las condiciones para garantizar un comportamiento robusto.
 
-  begin_op();
-  if ((ip = namei(path)) == 0) {
-    end_op();
-    return -1; // Error: Archivo no encontrado
-  }
-  ilock(ip);
-  ip->perm = mode;
-  iupdate(ip);
-  iunlock(ip);
-  end_op();
-  return 0; // Éxito
-}
-Actualización de Archivos Relacionados
-syscall.h: Añade la constante SYS_chmod.
-c
-Copiar código
-#define SYS_chmod 22 // Asegúrate de usar un número único
-syscall.c: Añade la entrada en la tabla de syscalls.
-c
-Copiar código
-[SYS_chmod] sys_chmod,
-usys.pl: Genera el wrapper para la syscall.
-plaintext
-Copiar código
-entry("chmod");
-4. Programa de Prueba
-Se creó un programa en el espacio de usuario para validar los cambios. Este programa realiza las siguientes operaciones:
+Cómo Probar la Funcionalidad
+Compila el sistema con los cambios realizados.
+make qemu
+Dentro del entorno de xv6, ejecuta el programa de prueba para validar la implementación:
+chmodtest
+El programa debería mostrar mensajes que confirmen si las operaciones se comportaron como se esperaba según los permisos asignados.
 
-Crea un archivo con permisos de lectura/escritura (O_RDWR).
-Escribe datos en el archivo.
-Cambia los permisos a solo lectura (chmod).
-Intenta escribir y verifica que falle.
-Cambia los permisos a lectura/escritura y verifica que funcione.
-Archivo de prueba: chmodtest.c
-
-c
-Copiar código
-#include "kernel/types.h"
-#include "kernel/stat.h"
-#include "user/user.h"
-#include "kernel/fcntl.h"
-
-int main() {
-  int fd;
-  char *filename = "testfile";
-
-  // Crear archivo con permisos de lectura/escritura
-  fd = open(filename, O_CREATE | O_RDWR);
-  write(fd, "test", 4);
-  close(fd);
-
-  // Cambiar permisos a solo lectura
-  chmod(filename, 1);
-
-  // Intentar abrir en modo escritura (debe fallar)
-  fd = open(filename, O_WRONLY);
-  if (fd < 0) {
-    printf("Error al abrir para escritura: permisos insuficientes\n");
-  } else {
-    printf("Error: debería haber fallado\n");
-    close(fd);
-  }
-
-  // Restaurar permisos de lectura/escritura
-  chmod(filename, 3);
-
-  // Escribir nuevamente
-  fd = open(filename, O_WRONLY);
-  if (fd >= 0) {
-    write(fd, "test2", 5);
-    close(fd);
-    printf("Escritura restaurada correctamente\n");
-  }
-  exit(0);
-}
-Compila y ejecuta el programa:
-
-bash
-Copiar código
-$ make qemu
-# Dentro de xv6:
-$ chmodtest
-Inconvenientes y Soluciones
-1. Errores en syscall.h
-Problema: Las constantes de SYS_* no estaban definidas, causando errores de compilación.
-Solución: Asegúrate de añadir SYS_chmod en syscall.h y actualizar syscall.c y usys.pl.
-2. Validación Incorrecta en sys_open
-Problema: Los permisos no se respetaban correctamente en los modos de apertura.
-Solución: Se añadieron condiciones específicas para verificar si el archivo tiene permisos de lectura y/o escritura antes de permitir su apertura.
-3. Valores Iniciales de Permisos
-Problema: Los permisos del inode no se inicializaban correctamente al crear nuevos archivos.
-Solución: Se estableció el valor por defecto 3 (lectura/escritura) en el campo perm al crear un nuevo inode.
 Conclusión
-Esta implementación añade una capa de control de acceso a los archivos en xv6, permitiendo gestionar sus permisos dinámicamente.
+Esta implementación amplía las capacidades de xv6 al agregar un sistema de permisos más completo y personalizable. Los cambios realizados incluyen la modificación de estructuras, funciones clave y la creación de una nueva syscall. Con estas mejoras, el sistema es capaz de gestionar el acceso a los archivos de manera más segura y controlada.
