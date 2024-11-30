@@ -46,10 +46,7 @@ Al crear nuevos inodes, no se inicializaba el campo perm. Esto causaba comportam
 3. Validación incorrecta en sys_open:
 En algunos casos, los permisos no se respetaban porque las verificaciones no cubrían todos los modos de apertura posibles. Se revisaron y ajustaron las condiciones para garantizar un comportamiento robusto.
 
-Cómo Probar la Funcionalidad
-Compila el sistema con los cambios realizados.
-make qemu
-Dentro del entorno de xv6, ejecuta el programa de prueba para validar la implementación:
+validar la implementación:
 chmodtest
 El programa debería mostrar mensajes que confirmen si las operaciones se comportaron como se esperaba según los permisos asignados.
 
