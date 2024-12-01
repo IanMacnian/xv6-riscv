@@ -43,3 +43,9 @@ main()
 
   scheduler();        
 }
+void init_message_queue() {
+    initlock(&mq.lock, "message_queue");
+    mq.head = 0;
+    mq.tail = 0;
+    mq.size = 0;
+}

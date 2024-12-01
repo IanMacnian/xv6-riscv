@@ -91,3 +91,53 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_send(void) {
+    int pid;
+    char *msg;
+
+    if (argint(0, &pid) < 0 || argptr(1, &msg, 128) < 0)
+        return -1;
+
+    acquire(&mq.lock);
+
+    if (mq.size >= MAX_MESSAGES) {
+        release(&mq.lock);
+        return -1;  // Cola llena
+    }
+
+    message *m = &mq.messages[mq.tail];
+    m->sender_pid = myproc()->pid;
+    safestrcpy(m->content, msg, sizeof(m->content));
+
+    mq.tail = (mq.tail + 1) % MAX_MESSAGES;
+    mq.size++;
+
+    wakeup(&mq); // Despertar procesos bloqueados
+    release(&mq.lock);
+
+    return 0; // Enviado con éxito
+}
+
+int sys_receive(void) {
+    char *msg;
+
+    if (argptr(0, &msg, 128) < 0)
+        return -1;
+
+    acquire(&mq.lock);
+
+    while (mq.size == 0) {
+        sleep(&mq, &mq.lock); // Bloquear si la cola está vacía
+    }
+
+    message *m = &mq.messages[mq.head];
+    safestrcpy(msg, m->content, sizeof(m->content));
+
+    mq.head = (mq.head + 1) % MAX_MESSAGES;
+    mq.size--;
+
+    release(&mq.lock);
+
+    return 0; // Recibido con éxito
+}
