@@ -15,7 +15,11 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
-
+#include "types.h"
+#include "defs.h"
+#include "fs.h"
+#include "file.h"
+#include "stat.h"
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -526,5 +530,30 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+uint64
+sys_chmod(void) {
+  char path[MAXPATH];
+  int mode;
+  struct inode *ip;
+
+  // Validar argumentos
+  if (argstr(0, path, MAXPATH) < 0 || argint(1, &mode) < 0)
+    return -1;
+
+  begin_op();
+  if ((ip = namei(path)) == 0) {
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+  
+  // Modificar permisos
+  ip->perm = mode;
+  iupdate(ip); // Actualizar dinode en disco
+  iunlock(ip);
+  end_op();
+
   return 0;
 }
