@@ -1,5 +1,4 @@
-README: Implementación de un Sistema de Comunicación entre Procesos (IPC) en xv6
-Este documento describe los pasos necesarios para implementar un sistema de colas de mensajes en xv6, los archivos nuevos, las modificaciones requeridas, y los posibles problemas o errores que pueden surgir durante la implementación.
+Implementación de un Sistema de Comunicación entre Procesos (IPC) en xv6
 
 1. Crear una estructura de datos para los mensajes
 Archivo nuevo: message_queue.h
